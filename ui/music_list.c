@@ -70,6 +70,11 @@ void music_list_add_item(const char *text)
     return;
   }
   lbl = lv_list_add_text(file_list, text);
+  /* lv_list_add_text defaults to LV_LABEL_LONG_SCROLL_CIRCULAR (single line,
+     tail clipped until the marquee scrolls). Switch to WRAP so the whole
+     song name is always visible; the item height grows automatically. */
+  lv_label_set_long_mode(lbl, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(lbl, LV_PCT(100));
   /* Theme paints every item with an opaque grey background; make items
      transparent so scrolling only draws the text (fewer pixel fills). */
   lv_obj_set_style_bg_opa(lbl, LV_OPA_TRANSP, LV_STATE_DEFAULT);
