@@ -1,0 +1,13 @@
+# Build output
+build/
+
+# IDE
+.idea/
+*.user
+
+# CubeMX backup files
+*.ioc.bak*
+
+# OS
+Thumbs.db
+Desktop.ini

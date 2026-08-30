@@ -1,0 +1,3 @@
+config load D:/CLion/Projects/Clion_h7_01/Clion_h7_01.ioc
+project generate
+project close
