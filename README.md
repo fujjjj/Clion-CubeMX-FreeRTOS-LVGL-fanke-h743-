@@ -1,4 +1,4 @@
-# Clion_h7_01 — CubeMX + FreeRTOS + LVGL
+# Clion_h7_01 — CubeMX + FreeRTOS + LVGL   (fanke反客h743)
 
 ## 项目结构 / How it is organized
 
@@ -47,3 +47,4 @@ CubeMX 只负责"生成代码"（工具链设为 Makefile，实际构建用 CMak
 `flash.bat` 调用 STM32CubeProgrammer CLI，经 ST-Link/SWD：
 - 内部 Flash：`Clion_h7_01-flash.bin` @ 0x08000000
 - 外部 QSPI：`Clion_h7_01-qspi.bin` @ 0x90000000（外部加载器驱动 W25Q64）
+![实际运行](https://github.com/fujjjj/Clion_h7_01/blob/main/bb7795c882a403c2e70a1e06638a1c55.jpg)
