@@ -46,4 +46,4 @@ CubeMX 只负责"生成代码"（工具链设为 Makefile，实际构建用 CMak
 
 `flash.bat` 调用 STM32CubeProgrammer CLI，经 ST-Link/SWD：
 - 内部 Flash：`Clion_h7_01-flash.bin` @ 0x08000000
-- 外部 QSPI：`Clion_h7_01-qspi.bin` @ 0x90000000（外部加载器驱动 W25323Q64）
+- 外部 QSPI：`Clion_h7_01-qspi.bin` @ 0x90000000（外部加载器驱动 W25Q64）
