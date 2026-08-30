@@ -127,7 +127,7 @@ int main(void)
   /* ==== Board bring-up (kept identical to the original FK743M1 project) ==== */
   LED_Init();                        /* LED1 on PH7 */
   MX_FMC_Init();                     /* SDRAM at 0xC0000000: framebuffers + LVGL pool */
-  /* MX_LTDC_Init() above already configured LTDC via lcd_rgb.c (timing + GPIO + backlight) */
+  MX_LTDC_Init();                    /* LTDC owned by the board driver lcd_rgb.c (timing + GPIO + backlight) */
   Touch_Init();                      /* GT911 touch via bit-banged I2C */
   QSPI_W25Qxx_Init();                /* W25Q64 external flash */
   QSPI_W25Qxx_MemoryMappedMode();    /* UI assets now readable at 0x90000000 */
