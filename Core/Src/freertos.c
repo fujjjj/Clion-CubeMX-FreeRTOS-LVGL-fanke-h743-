@@ -30,6 +30,10 @@
 #include "lvgl.h"
 #include "fatfs.h"
 #include "music_list.h"
+#include "i2c.h"
+#include "es8311.h"
+#include "sai.h"
+#include <math.h>
 #include <string.h>   /* strrchr / strcmp: 文件格式过滤要用 */
 #include <strings.h>  /* strcasecmp: 大小写不敏感比较 */
 /* USER CODE END Includes */
@@ -65,6 +69,8 @@ const osThreadAttr_t defaultTask_attributes = {
 /* USER CODE BEGIN FunctionPrototypes */
 
 void sd_scan_to_list(void);   /* mount SD + scan audio files into the LVGL list */
+void es8311_hw_test(void);    /* temporary: verify ES8311 I2C link */
+void es8311_sine_play(void);  /* temporary: play a 1 kHz sine over SAI1_B */
 
 /* USER CODE END FunctionPrototypes */
 
@@ -125,6 +131,8 @@ void StartDefaultTask(void *argument)
   /* Show the file list screen, then mount + scan the SD card into it. */
   music_list_create();
   sd_scan_to_list();
+  es8311_hw_test();                  /* temporary: verify ES8311 I2C link */
+  es8311_sine_play();                /* temporary: sine wave out of the speaker */
 
 /* Infinite loop */
 uint32_t led_last = 0;
@@ -340,5 +348,96 @@ void sd_scan_to_list(void)
   music_list_set_status(buf);
 }
 
-/* USER CODE END Application */
+/* Temporary hardware check for the ES8311 codec module (I2C + basic init).
+ * Result is shown in the status label of the music list screen. */
+void es8311_hw_test(void)
+{
+  char buf[64];
+  uint8_t id1 = 0, id2 = 0, ver = 0;
+  es8311_handle_t dev;
 
+  music_list_set_status("ES8311 I2C test...");
+  lv_timer_handler();
+
+  /* 1) Raw I2C probe: read the chip ID registers (0xFD / 0xFE / 0xFF). */
+  if (HAL_I2C_Mem_Read(&hi2c2, (uint16_t)(ES8311_ADDRRES_0 << 1), 0xFD,
+                       I2C_MEMADD_SIZE_8BIT, &id1, 1, 100) != HAL_OK)
+  {
+    music_list_set_status("ES8311 I2C FAIL: no ACK at 0x18");
+    return;
+  }
+  HAL_I2C_Mem_Read(&hi2c2, (uint16_t)(ES8311_ADDRRES_0 << 1), 0xFE,
+                   I2C_MEMADD_SIZE_8BIT, &id2, 1, 100);
+  HAL_I2C_Mem_Read(&hi2c2, (uint16_t)(ES8311_ADDRRES_0 << 1), 0xFF,
+                   I2C_MEMADD_SIZE_8BIT, &ver, 1, 100);
+
+  lv_snprintf(buf, sizeof(buf), "ES8311 I2C OK: FD=%02X FE=%02X FF=%02X", id1, id2, ver);
+  music_list_set_status(buf);
+  lv_timer_handler();
+
+  /* 2) Run the full ported driver init (48 kHz, MCLK 12.288 MHz, 16 bit). */
+  dev = es8311_create(&hi2c2, ES8311_ADDRRES_0);
+  if (dev == NULL)
+  {
+    music_list_set_status("ES8311 create failed");
+    return;
+  }
+
+  const es8311_clock_config_t clk = {
+    .mclk_inverted = false,
+    .sclk_inverted = false,
+    .mclk_from_mclk_pin = true,
+    .mclk_frequency = 12288000,
+    .sample_frequency = 48000
+  };
+
+  if (es8311_init(dev, &clk, ES8311_RESOLUTION_16, ES8311_RESOLUTION_16) == ES8311_OK)
+  {
+    es8311_voice_volume_set(dev, 70, NULL);
+    music_list_set_status("ES8311 init OK, vol=70");
+  }
+  else
+  {
+    music_list_set_status("ES8311 init FAIL");
+  }
+}
+
+/* Temporary sine-wave generator: 1 kHz, 48 kHz, 16-bit stereo. */
+#define SINE_SAMPLES 480   /* 10 ms @ 48 kHz -> loops seamlessly */
+static int16_t sine_buf[SINE_SAMPLES * 2];
+
+static void sine_fill(void)
+{
+  const float step = 2.0f * 3.14159265f * 1000.0f / 48000.0f;
+  float phase = 0.0f;
+
+  for (int i = 0; i < SINE_SAMPLES; i++)
+  {
+    int16_t v = (int16_t)(sinf(phase) * 32767.0f);
+    sine_buf[i * 2] = v;      /* left */
+    sine_buf[i * 2 + 1] = v;  /* right */
+    phase += step;
+  }
+}
+
+/* Start SAI1_B TX and stream the sine forever.
+ * NOTE: blocking test only - it will be replaced by a DMA + FreeRTOS audio
+ * task later, and the LVGL task stops updating while this runs. */
+void es8311_sine_play(void)
+{
+  sine_fill();
+  music_list_set_status("SAI sine 1kHz...");
+  lv_timer_handler();
+
+  for (;;)
+  {
+    /* Size = frames x slots (2 slots, 16-bit stereo) */
+    if (HAL_SAI_Transmit(&hsai_BlockB1, (uint8_t *)sine_buf, SINE_SAMPLES * 2, 100) != HAL_OK)
+    {
+      music_list_set_status("SAI TX error");
+      break;
+    }
+  }
+}
+
+/* USER CODE END Application */

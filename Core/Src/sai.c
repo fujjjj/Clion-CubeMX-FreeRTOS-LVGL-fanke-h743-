@@ -59,10 +59,13 @@ void MX_SAI1_Init(void)
   hsai_BlockB1.Init.PdmInit.MicPairsNbr = 1;
   hsai_BlockB1.Init.PdmInit.ClockEnable = SAI_PDM_CLOCK1_ENABLE;
   hsai_BlockB1.FrameInit.FrameLength = 32;
-  hsai_BlockB1.FrameInit.ActiveFrameLength = 1;
+  /* Standard I2S: WS/LRCK 50% duty -> active half of the 32-bit frame.
+   * CubeMX generated 1 here, which garbles the channel framing. */
+  hsai_BlockB1.FrameInit.ActiveFrameLength = 16;
   hsai_BlockB1.FrameInit.FSDefinition = SAI_FS_STARTFRAME;
   hsai_BlockB1.FrameInit.FSPolarity = SAI_FS_ACTIVE_LOW;
-  hsai_BlockB1.FrameInit.FSOffset = SAI_FS_FIRSTBIT;
+  /* Standard I2S: first data bit comes one BCLK after the LRCK edge. */
+  hsai_BlockB1.FrameInit.FSOffset = SAI_FS_BEFOREFIRSTBIT;
   hsai_BlockB1.SlotInit.FirstBitOffset = 0;
   hsai_BlockB1.SlotInit.SlotSize = SAI_SLOTSIZE_DATASIZE;
   hsai_BlockB1.SlotInit.SlotNumber = 2;

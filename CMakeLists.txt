@@ -176,6 +176,9 @@ target_link_options(${PROJECT_NAME} PRIVATE
   -Wl,--print-memory-usage
 )
 
+# libm for sinf() etc.; target_link_libraries keeps it after the objects
+target_link_libraries(${PROJECT_NAME} PRIVATE m)
+
 # ---------------------------------------------------------------------------
 # Post-build firmware artifacts (hex, internal-flash bin, qspi bin)
 # ---------------------------------------------------------------------------
