@@ -132,11 +132,11 @@ uint32_t led_last = 0;
   {
     lv_timer_handler();   /* let LVGL render (flush switches LTDC framebuffer)  LVGL 的“心跳轮询”*/
     Touch_Scan();         /* touch scan, must not be slower than 10 ms */
-    if (osKernelGetTickCount() - led_last >= 500)   /* toggle every 500 ms (1 Hz cycle) */
-    {
-      led_last = osKernelGetTickCount();
-      LED1_Toggle;        /* heartbeat */
-    }
+    // if (osKernelGetTickCount() - led_last >= 500)   /* toggle every 500 ms (1 Hz cycle) */
+    // {
+    //   led_last = osKernelGetTickCount();
+    //   LED1_Toggle;        /* heartbeat */
+    // }
 osDelay(5);
   }
   /* USER CODE END StartDefaultTask */
