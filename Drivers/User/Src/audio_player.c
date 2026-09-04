@@ -96,6 +96,10 @@ static mp3dec_io_t g_mp3io;
 static mp3dec_ex_t *g_dec;
 static SemaphoreHandle_t g_tx_sem;
 
+/* Double-buffer state, shared between the player task and the DMA ISR. */
+static volatile int s_cur;          /* buffer index the DMA is playing now */
+static volatile uint8_t s_ready[2]; /* 1 = buffer decoded and ready to play */
+
 /* Defined in sai.c (CubeMX HAL_SAI_MspInit); shared with stm32h7xx_it.c. */
 extern DMA_HandleTypeDef hdma_sai1_b;
 
@@ -154,18 +158,39 @@ static int audio_es8311_init(void)
   {
     return -1;
   }
-  es8311_voice_volume_set(dev, 40, NULL);
+  es8311_voice_volume_set(dev, 50, NULL);//50
   return 0;
 }
 
-/* Called from the DMA2_Stream3 ISR (via HAL_SAI_TxCpltCallback) when one
- * PCM buffer has been fully clocked out. */
+/* Called from the DMA2_Stream3 ISR (via HAL_SAI_TxCpltCallback) when one PCM
+ * buffer has been fully clocked out. Switches straight to the other buffer
+ * (already decoded by the task) so the audio stream never stops.
+ *
+ * With NORMAL-mode DMA the HAL resets both the SAI and DMA handles to READY
+ * *before* this callback runs, so starting the next transfer here is safe.
+ * If the next buffer is not ready yet (decode fell behind, or EOF) the SAI is
+ * disabled and the stream ends cleanly at a frame boundary. */
 void HAL_SAI_TxCpltCallback(SAI_HandleTypeDef *hsai)
 {
   (void)hsai;
   BaseType_t w = pdFALSE;
-  xSemaphoreGiveFromISR(g_tx_sem, &w);
-  portYIELD_FROM_ISR(w);
+
+  int done = s_cur;          /* buffer that just finished playing */
+  int nxt = done ^ 1;        /* the other buffer */
+
+  if (s_ready[nxt] != 0 &&
+      HAL_SAI_Transmit_DMA(&hsai_BlockB1, (uint8_t *)pcm_buf[nxt],
+                           (uint16_t)(PCM_FRAME * 2)) == HAL_OK)
+  {
+    s_cur = nxt;             /* playback continues on the other buffer */
+    s_ready[done] = 0;       /* 'done' is free: the task must refill it */
+    xSemaphoreGiveFromISR(g_tx_sem, &w);
+    portYIELD_FROM_ISR(w);
+    return;
+  }
+
+  /* Under-run / EOF / switch failure: stop at the frame boundary. */
+  __HAL_SAI_DISABLE(&hsai_BlockB1);
 }
 
 /* Decode exactly one MPEG frame into out[]. Short/EOF frames are zero-padded. */
@@ -238,8 +263,10 @@ static void audio_player_task(void *arg)
     g_tx_sem = xSemaphoreCreateBinary();
   }
 
-  /* Prime the first buffer, then start DMA so the codec clocks it out. */
-  if (decode_frame(pcm_buf[0]) <= 0)
+  /* Prime both buffers, then start DMA on buffer 0. From here on the ISR
+   * alternates between the buffers and only asks us to refill the one that
+   * just finished playing - the DMA never stops. */
+  if (decode_frame(pcm_buf[0]) <= 0 || decode_frame(pcm_buf[1]) <= 0)
   {
     audio_status("解码失败");
     mp3dec_ex_close(g_dec);
@@ -247,17 +274,18 @@ static void audio_player_task(void *arg)
     vTaskDelete(NULL);
     return;
   }
+  /* CPU wrote the PCM via the DCache; flush it to RAM so the DMA reads the
+   * real samples, not stale cache lines. */
+  SCB_CleanDCache_by_Addr((uint32_t *)pcm_buf[0], sizeof(pcm_buf[0]));
+  SCB_CleanDCache_by_Addr((uint32_t *)pcm_buf[1], sizeof(pcm_buf[1]));
 
   lv_snprintf(buf, sizeof(buf), "播放 %dHz %dch",
               g_dec->info.hz, g_dec->info.channels);
   audio_status(buf);
 
-  /* The ISR gives the semaphore slightly before the DMA handle is reset to
-   * READY; starting the next transfer too early returns HAL_BUSY. */
-  while (hdma_sai1_b.State != HAL_DMA_STATE_READY)
-  {
-    taskYIELD();
-  }
+  s_ready[0] = 1;
+  s_ready[1] = 1;
+  s_cur = 0;
   if (HAL_SAI_Transmit_DMA(&hsai_BlockB1, (uint8_t *)pcm_buf[0],
                            (uint16_t)(PCM_FRAME * 2)) != HAL_OK)
   {
@@ -268,7 +296,6 @@ static void audio_player_task(void *arg)
     return;
   }
 
-  int cur = 1;
   for (;;)
   {
     if (xSemaphoreTake(g_tx_sem, pdMS_TO_TICKS(2000)) != pdTRUE)
@@ -276,22 +303,22 @@ static void audio_player_task(void *arg)
       audio_status("播放中断(超时)");
       break;
     }
-    if (decode_frame(pcm_buf[cur]) <= 0)
+
+    /* Refill the buffer that just finished playing. */
+    int fill = s_cur ^ 1;
+    if (decode_frame(pcm_buf[fill]) <= 0)
     {
+      /* EOF: leave this buffer not-ready; the ISR will stop cleanly after
+       * the currently playing buffer finishes. */
+      s_ready[fill] = 0;
       audio_status("播放结束");
+      /* Wait for the ISR to play out the last ready buffer and stop. */
+      xSemaphoreTake(g_tx_sem, pdMS_TO_TICKS(100));
       break;
     }
-    while (hdma_sai1_b.State != HAL_DMA_STATE_READY)
-    {
-      taskYIELD();
-    }
-    if (HAL_SAI_Transmit_DMA(&hsai_BlockB1, (uint8_t *)pcm_buf[cur],
-                             (uint16_t)(PCM_FRAME * 2)) != HAL_OK)
-    {
-      audio_status("SAI DMA 错误");
-      break;
-    }
-    cur ^= 1;
+    /* Make the freshly decoded samples visible to the DMA. */
+    SCB_CleanDCache_by_Addr((uint32_t *)pcm_buf[fill], sizeof(pcm_buf[fill]));
+    s_ready[fill] = 1;
   }
 
   HAL_SAI_DMAStop(&hsai_BlockB1);
