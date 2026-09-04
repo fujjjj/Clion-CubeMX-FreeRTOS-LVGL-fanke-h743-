@@ -19,6 +19,7 @@ MEMORY
 {
   FLASH (rx)  : ORIGIN = 0x08000000, LENGTH = 2M
   RAM   (xrw) : ORIGIN = 0x20000000, LENGTH = 128K
+  AXIRAM (xrw): ORIGIN = 0x24000000, LENGTH = 512K
   QSPI  (rx)  : ORIGIN = 0x90000000, LENGTH = 8M
 }
 
@@ -144,6 +145,15 @@ SECTIONS
     . = . + _Min_Stack_Size;
     . = ALIGN(8);
   } >RAM :data
+
+  /* Audio PCM double buffer for the SAI DMA. Placed in AXI SRAM on purpose:
+   * DTCM is not reliably reachable by DMA2 and caused transfer errors. */
+  .audio_buf (NOLOAD) :
+  {
+    . = ALIGN(32);
+    KEEP(*(.audio_buf))
+    . = ALIGN(32);
+  } >AXIRAM :data
 
   .ARM.attributes 0 (INFO) :
   {
