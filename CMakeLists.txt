@@ -115,6 +115,7 @@ set(USER_DRV_SRC
   ${PROJECT_ROOT}/Drivers/User/Src/touch_iic.c
   ${PROJECT_ROOT}/Drivers/User/Src/qspi_w25q64.c
   ${PROJECT_ROOT}/Drivers/User/Src/usart.c
+  ${PROJECT_ROOT}/Drivers/User/Src/audio_player.c
 )
 
 add_executable(${PROJECT_NAME}
@@ -137,8 +138,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE
   ${PROJECT_ROOT}/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2
   ${PROJECT_ROOT}/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F
   ${PROJECT_ROOT}/Middlewares/Third_Party/FatFs/src
+  ${PROJECT_ROOT}/Middlewares/Third_Party/minimp3
   ${PROJECT_ROOT}/FATFS/Target
   ${PROJECT_ROOT}/FATFS/App
+  ${PROJECT_ROOT}/Drivers/User/Inc
   ${PROJECT_ROOT}/LVGL
   ${PROJECT_ROOT}/LVGL/src
   ${PROJECT_ROOT}/LVGL/src/core

@@ -197,6 +197,16 @@ SECTIONS
   } >DTCMRAM
 
 
+  /* Audio PCM double buffer for the SAI DMA. Placed in AXI SRAM (RAM) on
+   * purpose: DTCM is not reliably reachable by DMA2 and caused transfer
+   * errors before. */
+  .audio_buf (NOLOAD) :
+  {
+    . = ALIGN(32);
+    KEEP(*(.audio_buf))
+    . = ALIGN(32);
+  } >RAM
+
 
   /* Remove information from the standard libraries */
   /DISCARD/ :
