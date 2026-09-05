@@ -139,7 +139,7 @@ CubeMX 只负责"生成代码"(实际构建用 CMake):
    `sd_diskio.c`(SD_status 缓存),被覆盖就补回
 4. 构建 → 烧录
 
-## 烧录原理 / Flash
+## 烧录原理 / Flash.
 
 `flash.bat` 调用 STM32CubeProgrammer CLI,经 ST-Link/SWD:
 
