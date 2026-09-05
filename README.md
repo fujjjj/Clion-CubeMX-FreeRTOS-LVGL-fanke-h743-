@@ -49,3 +49,11 @@ CubeMX 只负责"生成代码"（工具链设为 Makefile，实际构建用 CMak
 - 外部 QSPI：`Clion_h7_01-qspi.bin` @ 0x90000000（外部加载器驱动 W25Q64）....
 ![实际运行](https://github.com/fujjjj/Clion_h7_01/blob/main/bb7795c882a403c2e70a1e06638a1c55.jpg)
 <video src="https://raw.githubusercontent.com/fujjjj/Clion-CubeMX-FreeRTOS-LVGL-fanke-h743-/main/dd123406facb8e00e71aa23e5696ffe0.mp4" controls="controls" width="100%" height="auto"></video>
+https://github.com/user-attachments/assets/527ad62f-ad7a-4516-9554-bfd19a3578d7
+
+
+
+
+
+
+
