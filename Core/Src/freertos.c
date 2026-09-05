@@ -56,9 +56,18 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
-/* Full UTF-16 path of the first MP3 found while scanning (e.g. "0:/music/x.mp3").
- * Filled by scan_add_file(); consumed by the audio player. */
-uint16_t g_play_path[300];
+/* Track library filled by the SD scan. Stored in AXI SRAM (.audio_buf) so the
+ * arrays do not eat DTCM; the audio player and the UI read it through the
+ * music_get_*() accessors declared in audio_player.h. */
+#define MAX_TRACKS      99
+#define TRACK_PATH_LEN  256   /* UTF-16 code units, incl. terminator */
+#define TRACK_NAME_LEN  256   /* UTF-8 bytes, incl. terminator */
+
+__attribute__((section(".audio_buf"), aligned(4)))
+static uint16_t s_track_path[MAX_TRACKS][TRACK_PATH_LEN];
+__attribute__((section(".audio_buf"), aligned(4)))
+static char s_track_name[MAX_TRACKS][TRACK_NAME_LEN];
+static uint16_t s_track_count;
 
 /* USER CODE END Variables */
 /* Definitions for defaultTask */
@@ -271,14 +280,42 @@ static void scan_add_file(FILINFO *finfo, const uint16_t *dir_path, uint16_t *co
   {
     lv_snprintf(line, sizeof(line), "%s", utf8);
     music_list_add_item(line);
-    (*count)++;
 
-    /* Remember the first MP3's full path (FatFs needs the UTF-16 path). */
-    if (g_play_path[0] == 0 && dot != NULL && strcasecmp(dot, ".mp3") == 0)
+    /* Save the full path + display name into the track library so the
+     * player can open any track by index. */
+    if (*count < MAX_TRACKS)
     {
-      tstr_join(g_play_path, 300, dir_path, (const uint16_t *)finfo->fname);
+      tstr_join(s_track_path[*count], TRACK_PATH_LEN, dir_path,
+                (const uint16_t *)finfo->fname);
+      strncpy(s_track_name[*count], utf8, TRACK_NAME_LEN - 1);
+      s_track_name[*count][TRACK_NAME_LEN - 1] = 0;
     }
+    (*count)++;
   }
+}
+
+/* ---- Track library accessors (declared in audio_player.h) ----------------- */
+uint16_t music_get_count(void)
+{
+  return s_track_count;
+}
+
+const char *music_get_title(uint16_t index)
+{
+  if (index < s_track_count)
+  {
+    return s_track_name[index];
+  }
+  return "";
+}
+
+const uint16_t *music_get_path(uint16_t index)
+{
+  if (index < s_track_count)
+  {
+    return s_track_path[index];
+  }
+  return NULL;
 }
 
 /* Recursively scan a directory (sub-directories included), max 99 entries. */
@@ -337,6 +374,7 @@ void sd_scan_to_list(void)
   uint16_t count = 0;
   FRESULT res;
 
+  s_track_count = 0;              /* start a fresh library */
   music_list_set_status("正在挂载 SD 卡");
   lv_timer_handler();
 
@@ -359,7 +397,8 @@ void sd_scan_to_list(void)
     return;
   }
 
-  lv_snprintf(buf, sizeof(buf), "共 %d 首", count);
+  s_track_count = count;
+  lv_snprintf(buf, sizeof(buf), "共 %u 首", (unsigned)count);
   music_list_set_status(buf);
 }
 
